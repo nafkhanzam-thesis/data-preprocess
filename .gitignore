@@ -8,3 +8,8 @@ node_modules
 oclif.manifest.json
 /tsconfig.tsbuildinfo
 /.~*
+
+# This Project
+/data
+/.env
+__pycache__

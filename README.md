@@ -1,292 +1,207 @@
-oclif-hello-world
-=================
+# nafkhanzam-thesis/experiments
 
-oclif example Hello World CLI
+## Data Filling Steps
 
-[![oclif](https://img.shields.io/badge/cli-oclif-brightgreen.svg)](https://oclif.io)
-[![Version](https://img.shields.io/npm/v/oclif-hello-world.svg)](https://npmjs.org/package/oclif-hello-world)
-[![CircleCI](https://circleci.com/gh/oclif/hello-world/tree/main.svg?style=shield)](https://circleci.com/gh/oclif/hello-world/tree/main)
-[![Downloads/week](https://img.shields.io/npm/dw/oclif-hello-world.svg)](https://npmjs.org/package/oclif-hello-world)
-[![License](https://img.shields.io/npm/l/oclif-hello-world.svg)](https://github.com/oclif/hello-world/blob/main/package.json)
+### Translation steps
 
-<!-- toc -->
-* [Usage](#usage)
-* [Commands](#commands)
-<!-- tocstop -->
-# Usage
-<!-- usage -->
-```sh-session
-$ npm install -g oclif-template
-$ oex COMMAND
-running command...
-$ oex (--version)
-oclif-template/0.0.1 linux-x64 node-v16.18.1
-$ oex --help [COMMAND]
-USAGE
-  $ oex COMMAND
-...
-```
-<!-- usagestop -->
-# Commands
-<!-- commands -->
-* [`oex help [COMMAND]`](#oex-help-command)
-* [`oex plugins`](#oex-plugins)
-* [`oex plugins:install PLUGIN...`](#oex-pluginsinstall-plugin)
-* [`oex plugins:inspect PLUGIN...`](#oex-pluginsinspect-plugin)
-* [`oex plugins:install PLUGIN...`](#oex-pluginsinstall-plugin-1)
-* [`oex plugins:link PLUGIN`](#oex-pluginslink-plugin)
-* [`oex plugins:uninstall PLUGIN...`](#oex-pluginsuninstall-plugin)
-* [`oex plugins:uninstall PLUGIN...`](#oex-pluginsuninstall-plugin-1)
-* [`oex plugins:uninstall PLUGIN...`](#oex-pluginsuninstall-plugin-2)
-* [`oex plugins update`](#oex-plugins-update)
+|                         | **amr** | **amr_dfs** | **en** | **id** | **en_back** | **en_alt** | **id_alt** | **en_alt_back** |
+| ----------------------- | ------- | ----------- | ------ | ------ | ----------- | ---------- | ---------- | --------------- |
+| **LDC2017-test**        | 0       | 2           | 0      | 0      | -           | -          | -          | -               |
+| **LDC2020-train-dev**   | 0       | 2           | 0      | 4      | 5           | 3          | 4          | 5               |
+| **PANL-BPPT & IWSLT17** | 1       | 2           | 0      | 0      | -           | -          | -          | -               |
 
-## `oex help [COMMAND]`
+- 0: Available data.
+- 1: AMR parse parallel corpora.
+- 2: DFS linearize AMRs.
+- 3: AMR-to-text AMRs to EN-ALTs as an alternative to ENs.
+- 4: Translate ENs to IDs.
+- 5: Translate IDs to ENs back.
 
-Display help for oex.
+### Inserting to database
 
-```
-USAGE
-  $ oex help [COMMAND] [-n]
+All the translation results are then inserted to ScyllaDB.
 
-ARGUMENTS
-  COMMAND  Command to show help for.
+### Evaluation steps
 
-FLAGS
-  -n, --nested-commands  Include all nested commands in the output.
+1. Encode each `en` and `id` sentences (except `back`) using LaBSE encoder.
+2. Compute BLEU scores for each `en` and `en_back` pair.
+3. Compute BLEU scores for `en` and `en_alt`.
 
-DESCRIPTION
-  Display help for oex.
-```
+## Filter dataset
 
-_See code: [@oclif/plugin-help](https://github.com/oclif/plugin-help/blob/v5.1.20/src/commands/help.ts)_
+The filtered data will be saved to `dataset` table.
 
-## `oex plugins`
+### Training data filtration criterias
 
-List installed plugins.
+All:
 
-```
-USAGE
-  $ oex plugins [--core]
+- `data_source` == 'LDC2020'
 
-FLAGS
-  --core  Show core plugins.
+Original sentences:
 
-DESCRIPTION
-  List installed plugins.
+- `id__en__nn_rank` == 1
 
-EXAMPLES
-  $ oex plugins
-```
+Alternative sentences:
 
-_See code: [@oclif/plugin-plugins](https://github.com/oclif/plugin-plugins/blob/v2.1.9/src/commands/plugins/index.ts)_
+- 0.1 < `en__en_alt__bleu` < 0.9
+- `id_alt__en_alt__nn_rank` == 1
 
-## `oex plugins:install PLUGIN...`
+### Evaluate final dataset
 
-Installs a plugin into the CLI.
+- BLEU score: ~~Average of `en__en_back__bleu` and `en_alt__en_alt_back__bleu`.~~ Corpus-level BLEU score of all combined dataset.
+- Cosine similarity: 1 - Average of `labse_distance` and `alt__labse_distance`.
 
-```
-USAGE
-  $ oex plugins:install PLUGIN...
+## Schema
 
-ARGUMENTS
-  PLUGIN  Plugin to install.
+Dataset will be saved in a columnar database like Cassandra or Scylla.
+I will be using ScyllaDB.
 
-FLAGS
-  -f, --force    Run yarn install with force flag.
-  -h, --help     Show CLI help.
-  -v, --verbose
+(I think this was a mistake, relational databases may suit better)
 
-DESCRIPTION
-  Installs a plugin into the CLI.
-  Can be installed from npm or a git url.
+Key columns:
 
-  Installation of a user-installed plugin will override a core plugin.
+- `data_source` {LDC2017,LDC2020,PANL-BPPT,IWSLT17}
+- `split` {train,dev,test}
+- `idx` {0..*}
 
-  e.g. If you have a core plugin that has a 'hello' command, installing a user-installed plugin with a 'hello' command
-  will override the core plugin implementation. This is useful if a user needs to update core plugin functionality in
-  the CLI without the need to patch and update the whole CLI.
+AMR columns:
 
+- `amr`: PENMAN-format AMR.
+- `amr_dfs`: DFS-format AMR.
 
-ALIASES
-  $ oex plugins add
+Original sentence pairs:
 
-EXAMPLES
-  $ oex plugins:install myplugin 
+- `en`: English sentence.
+- `id`: Indonesian translation of `en`.
+- `en__labse`: LaBSE-encoded `en`.
+- `id__labse`: LaBSE-encoded `id`.
+- `labse_distance`: The cosine distance of `en__labse` and `id__labse`.
+- `id__en__nn_rank`: k-NN rank of the corresponding `en__labse` of `id__labse` among others.
+- `en_back`: English translation back of `id`.
+- `en__en_back__bleu`: BLEU score between `en` and `en_back`.
 
-  $ oex plugins:install https://github.com/someuser/someplugin
+AMR-to-text sentence pairs:
 
-  $ oex plugins:install someuser/someplugin
+- `en_alt`: AMR-to-text of `amr`.
+- `id_alt`: Indonesian translation of `en_alt`.
+- `en_alt__labse`: LaBSE-encoded `en_alt`.
+- `id_alt__labse`: LaBSE-encoded `id_alt`.
+- `alt__labse_distance`: The cosine distance of `en_alt__labse` and `id_alt__labse`.
+- `id_alt__en__nn_rank`: k-NN rank of the corresponding `en_alt__labse` of `id_alt__labse` among others.
+- `en_alt_back`: English translation back of `id_alt`.
+- `en_alt__en_alt_back__bleu`: BLEU score between `en_alt` and `en_alt_back`.
+- `en__en_alt__bleu`: BLEU score between `en` and `en_alt`.
+
+### Data Definition
+
+Keyspace:
+
+```sql
+CREATE KEYSPACE thesis
+WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1}
+AND durable_writes = true;
 ```
 
-## `oex plugins:inspect PLUGIN...`
+Table:
 
-Displays installation properties of a plugin.
+```sql
+CREATE TABLE data (
+  data_source text,
+  split text,
+  idx int,
 
-```
-USAGE
-  $ oex plugins:inspect PLUGIN...
+  amr text,
+  amr_dfs text,
 
-ARGUMENTS
-  PLUGIN  [default: .] Plugin to inspect.
+  en text,
+  id text,
+  en__labse list<double>,
+  id__labse list<double>,
+  labse_distance double,
+  id__en__nn_rank int,
+  en_back text,
+  en__en_back__bleu double,
 
-FLAGS
-  -h, --help     Show CLI help.
-  -v, --verbose
+  en_alt text,
+  id_alt text,
+  en_alt__labse list<double>,
+  id_alt__labse list<double>,
+  alt__labse_distance double,
+  id_alt__en_alt__nn_rank int,
+  en_alt_back text,
+  en_alt__en_alt_back__bleu double,
 
-DESCRIPTION
-  Displays installation properties of a plugin.
+  en__en_alt__bleu double,
 
-EXAMPLES
-  $ oex plugins:inspect myplugin
-```
+  PRIMARY KEY (data_source, split, idx)
+);
 
-## `oex plugins:install PLUGIN...`
+CREATE TABLE dataset (
+  data_source text,
+  split text,
+  source_type text, -- {original,alternative}
+  idx int,
 
-Installs a plugin into the CLI.
+  amr text,
+  amr_dfs text,
 
-```
-USAGE
-  $ oex plugins:install PLUGIN...
+  en text,
+  id text,
+  labse_distance double,
+  back_bleu double,
 
-ARGUMENTS
-  PLUGIN  Plugin to install.
-
-FLAGS
-  -f, --force    Run yarn install with force flag.
-  -h, --help     Show CLI help.
-  -v, --verbose
-
-DESCRIPTION
-  Installs a plugin into the CLI.
-  Can be installed from npm or a git url.
-
-  Installation of a user-installed plugin will override a core plugin.
-
-  e.g. If you have a core plugin that has a 'hello' command, installing a user-installed plugin with a 'hello' command
-  will override the core plugin implementation. This is useful if a user needs to update core plugin functionality in
-  the CLI without the need to patch and update the whole CLI.
-
-
-ALIASES
-  $ oex plugins add
-
-EXAMPLES
-  $ oex plugins:install myplugin 
-
-  $ oex plugins:install https://github.com/someuser/someplugin
-
-  $ oex plugins:install someuser/someplugin
+  PRIMARY KEY (data_source, split, source_type, idx)
+);
 ```
 
-## `oex plugins:link PLUGIN`
+Alternative Table for PostgreSQL:
 
-Links a plugin into the CLI for development.
+```sql
+CREATE UNLOGGED TABLE data (
+  data_source text NOT NULL,
+  split text NOT NULL,
+  idx int NOT NULL,
 
+  amr text,
+  amr_dfs text,
+
+  en text,
+  id text,
+  en__labse jsonb,
+  id__labse jsonb,
+  labse_distance double precision,
+  id__en__nn_rank int,
+  en_back text,
+  en__en_back__bleu double precision,
+
+  en_alt text,
+  id_alt text,
+  en_alt__labse jsonb,
+  id_alt__labse jsonb,
+  alt__labse_distance double precision,
+  id_alt__en_alt__nn_rank int,
+  en_alt_back text,
+  en_alt__en_alt_back__bleu double precision,
+
+  en__en_alt__bleu double precision,
+
+  PRIMARY KEY (data_source, split, idx)
+);
+
+CREATE UNLOGGED TABLE dataset (
+  data_source text,
+  split text,
+  source_type text, -- {original,alternative}
+  idx int,
+
+  amr text,
+  amr_dfs text,
+
+  en text,
+  id text,
+  labse_distance double precision,
+  back_bleu double precision,
+
+  PRIMARY KEY (data_source, split, source_type, idx)
+);
 ```
-USAGE
-  $ oex plugins:link PLUGIN
-
-ARGUMENTS
-  PATH  [default: .] path to plugin
-
-FLAGS
-  -h, --help     Show CLI help.
-  -v, --verbose
-
-DESCRIPTION
-  Links a plugin into the CLI for development.
-  Installation of a linked plugin will override a user-installed or core plugin.
-
-  e.g. If you have a user-installed or core plugin that has a 'hello' command, installing a linked plugin with a 'hello'
-  command will override the user-installed or core plugin implementation. This is useful for development work.
-
-
-EXAMPLES
-  $ oex plugins:link myplugin
-```
-
-## `oex plugins:uninstall PLUGIN...`
-
-Removes a plugin from the CLI.
-
-```
-USAGE
-  $ oex plugins:uninstall PLUGIN...
-
-ARGUMENTS
-  PLUGIN  plugin to uninstall
-
-FLAGS
-  -h, --help     Show CLI help.
-  -v, --verbose
-
-DESCRIPTION
-  Removes a plugin from the CLI.
-
-ALIASES
-  $ oex plugins unlink
-  $ oex plugins remove
-```
-
-## `oex plugins:uninstall PLUGIN...`
-
-Removes a plugin from the CLI.
-
-```
-USAGE
-  $ oex plugins:uninstall PLUGIN...
-
-ARGUMENTS
-  PLUGIN  plugin to uninstall
-
-FLAGS
-  -h, --help     Show CLI help.
-  -v, --verbose
-
-DESCRIPTION
-  Removes a plugin from the CLI.
-
-ALIASES
-  $ oex plugins unlink
-  $ oex plugins remove
-```
-
-## `oex plugins:uninstall PLUGIN...`
-
-Removes a plugin from the CLI.
-
-```
-USAGE
-  $ oex plugins:uninstall PLUGIN...
-
-ARGUMENTS
-  PLUGIN  plugin to uninstall
-
-FLAGS
-  -h, --help     Show CLI help.
-  -v, --verbose
-
-DESCRIPTION
-  Removes a plugin from the CLI.
-
-ALIASES
-  $ oex plugins unlink
-  $ oex plugins remove
-```
-
-## `oex plugins update`
-
-Update installed plugins.
-
-```
-USAGE
-  $ oex plugins update [-h] [-v]
-
-FLAGS
-  -h, --help     Show CLI help.
-  -v, --verbose
-
-DESCRIPTION
-  Update installed plugins.
-```
-<!-- commandsstop -->
