@@ -14,12 +14,29 @@ export default class _Command extends Command {
       //   DataCategory.TEST,
       //   ["consensus", "xinhua", "dfa", "proxy", "bolt"],
       // ],
-      // [AMRDataset.AMR3, DataCategory.TRAIN, undefined],
       [
         AMRDataset.AMR3,
-        DataCategory.DEV,
-        ["xinhua", "proxy", "lorelei", "dfa", "bolt", "consensus"],
+        DataCategory.TRAIN,
+        [
+          "wiki",
+          "cctv",
+          "wb",
+          "guidelines",
+          "proxy",
+          "mt09sdl",
+          "dfb",
+          "xinhua",
+          "bolt",
+          "dfa",
+          "lorelei",
+          "fables",
+        ],
       ],
+      // [
+      //   AMRDataset.AMR3,
+      //   DataCategory.DEV,
+      //   ["xinhua", "proxy", "lorelei", "dfa", "bolt", "consensus"],
+      // ],
     ];
 
     for (const [dataset, category, orders] of comb) {
@@ -41,8 +58,6 @@ export default class _Command extends Command {
         );
       }
 
-      console.log(filePathList);
-
       const amrss: AMR[][] = await Promise.all(
         filePathList.map((filePath) =>
           AMR.fromFile(filePath).catch((err: unknown) => {
@@ -52,13 +67,11 @@ export default class _Command extends Command {
         ),
       );
 
-      console.log(amrss.map((v) => v.length));
-
       const amrs = amrss.flat();
 
       const iter = tqdmIterable(amrs.entries(), amrs.length, {
-        suffix: ([idx]) => `${dataset}-${category}-${idx}`,
-        skipTo: 1485,
+        suffix: ([idx]) => `${dataset}-${category}-${idx}/${amrs.length}`,
+        skipTo: 9644,
       });
 
       for (const [idx, amr] of iter) {
@@ -76,13 +89,14 @@ export default class _Command extends Command {
         const {dataKey, data} = result;
 
         const en = data.en;
-        const snt = amr.metadata.get("snt");
+        let snt = amr.metadata.get("snt");
 
         if (data.amr) {
           continue;
         }
         assert(typeof en === "string");
         assert(typeof snt === "string");
+        snt = snt.replace(/(<([^>]+)>)/gi, "");
         if (en !== snt) {
           console.log();
           printDiff.printUnifiedDiff(en, snt);
