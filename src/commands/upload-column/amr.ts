@@ -71,7 +71,6 @@ export default class _Command extends Command {
 
       const iter = tqdmIterable(amrs.entries(), amrs.length, {
         suffix: ([idx]) => `${dataset}-${category}-${idx}/${amrs.length}`,
-        skipTo: 9644,
       });
 
       for (const [idx, amr] of iter) {
@@ -96,7 +95,10 @@ export default class _Command extends Command {
         }
         assert(typeof en === "string");
         assert(typeof snt === "string");
-        snt = snt.replace(/(<([^>]+)>)/gi, "");
+        snt = snt
+          .replace(/(<[^ ]?([^>]+)>)/gi, "")
+          .replace(/(&quot;)/g, `"`)
+          .trim();
         if (en !== snt) {
           console.log();
           printDiff.printUnifiedDiff(en, snt);
