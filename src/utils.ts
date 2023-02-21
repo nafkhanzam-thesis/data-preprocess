@@ -1,6 +1,8 @@
 import {fs} from "./lib";
 
-function cartesianProduct<T extends unknown[]>(...allEntries: unknown[][]): T {
+function cartesianProduct<T extends readonly unknown[]>(
+  ...allEntries: (readonly unknown[])[]
+): T {
   // @ts-expect-error idc
   return allEntries.reduce(
     (results, entries) =>
