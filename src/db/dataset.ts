@@ -1,4 +1,4 @@
-import {BatchValue, Client} from "./base.js";
+import {BatchKey, BatchValue, Client} from "./base.js";
 import {dataSources, splits} from "./data.js";
 
 export const sourceTypes = ["original", "alternative"] as const;
@@ -20,6 +20,7 @@ export type Dataset = {
 };
 
 export type DatasetBatchValue = BatchValue<DatasetKey, Dataset>;
+export type DatasetBatchKey = BatchKey<DatasetKey>;
 
 export const datasetColumns: readonly [keyof Dataset, ...(keyof Dataset)[]] = [
   "amr",

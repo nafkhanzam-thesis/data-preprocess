@@ -2,6 +2,7 @@ import cassandra from "cassandra-driver";
 import {env} from "../env.js";
 
 export type BatchValue<K, D> = {dataKey: K; data: D};
+export type BatchKey<K> = {dataKey: K};
 
 export class Client<
   K extends {idx: number; [k: string]: unknown},
@@ -40,6 +41,16 @@ export class Client<
       .map((batchValue) => this.createUpdateQuery(batchValue))
       .map(({updateTemplate, values}) => ({
         query: updateTemplate,
+        params: values,
+      }));
+    await Client.instance.batch(queries, {prepare: true});
+  }
+
+  async batchDelete(dataList: BatchKey<K>[]): Promise<void> {
+    const queries = dataList
+      .map((batchValue) => this.createDeleteQuery(batchValue))
+      .map(({deleteTemplate, values}) => ({
+        query: deleteTemplate,
         params: values,
       }));
     await Client.instance.batch(queries, {prepare: true});
@@ -141,5 +152,19 @@ export class Client<
     ];
     const updateTemplate = `UPDATE ${this.table} SET ${setTemplate} WHERE ${whereTemplate}`;
     return {updateTemplate, values};
+  }
+
+  private createDeleteQuery({dataKey}: BatchKey<K>): {
+    deleteTemplate: string;
+    values: cassandra.ArrayOrObject;
+  } {
+    const dataKeyEntries = Object.entries(dataKey);
+    const whereTemplate = dataKeyEntries
+      .map(([key]) => `${key}=?`)
+      .join(" AND ");
+
+    const values = dataKeyEntries.map(([_, v]) => v);
+    const deleteTemplate = `DELETE FROM ${this.table} WHERE ${whereTemplate}`;
+    return {deleteTemplate, values};
   }
 }
