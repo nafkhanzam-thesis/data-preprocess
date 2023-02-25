@@ -15,7 +15,7 @@ export default class _Command extends Command {
     }),
     outputDir: Flags.string({
       description: `The output files directory.`,
-      default: `data/outputs/amrbart`,
+      default: `data/outputs/amrbart-new`,
     }),
   };
 
@@ -26,9 +26,11 @@ export default class _Command extends Command {
     const datasetKeys: {
       dataKey: Omit<DatasetKey, "idx" | "source_type">;
       datasetType: DatasetType;
+      langs: ("en" | "id")[];
     }[] = [
       {
         datasetType: "pretrain",
+        langs: ["id", "en"],
         dataKey: {
           data_source: "IWSLT17",
           split: "train",
@@ -36,6 +38,7 @@ export default class _Command extends Command {
       },
       {
         datasetType: "pretrain",
+        langs: ["id", "en"],
         dataKey: {
           data_source: "PANL-BPPT",
           split: "train",
@@ -43,6 +46,7 @@ export default class _Command extends Command {
       },
       {
         datasetType: "train",
+        langs: ["id", "en"],
         dataKey: {
           data_source: "LDC2020",
           split: "train",
@@ -50,6 +54,7 @@ export default class _Command extends Command {
       },
       {
         datasetType: "dev",
+        langs: ["id"],
         dataKey: {
           data_source: "LDC2020",
           split: "dev",
@@ -57,6 +62,7 @@ export default class _Command extends Command {
       },
       {
         datasetType: "test",
+        langs: ["id"],
         dataKey: {
           data_source: "LDC2017",
           split: "test",
@@ -73,7 +79,7 @@ export default class _Command extends Command {
 
     const fetchSize = flags.fetchSize;
 
-    for (const {dataKey, datasetType} of datasetKeys) {
+    for (const {dataKey, datasetType, langs} of datasetKeys) {
       for (const source_type of sourceTypes) {
         const datasetKey = {...dataKey, source_type};
         const fetchGen = datasetDb.batchSelect(
@@ -96,24 +102,26 @@ export default class _Command extends Command {
             console.error(`amr_dfs is null on: ${JSON.stringify(dataKey)}`);
             continue;
           }
-          if (!data.en) {
-            console.error(`en is null on: ${JSON.stringify(dataKey)}`);
-            continue;
+          if (langs.includes("en")) {
+            if (data.en) {
+              results[datasetType].push({
+                amr: data.amr_dfs,
+                sent: data.en,
+                lang: "en",
+              });
+            } else {
+              console.error(`en is null on: ${JSON.stringify(dataKey)}`);
+            }
           }
-          results[datasetType].push({
-            amr: data.amr_dfs,
-            sent: data.en,
-            lang: "en",
-          });
-          if (!data.id) {
+          if (data.id) {
+            results[datasetType].push({
+              amr: data.amr_dfs,
+              sent: data.id,
+              lang: "id",
+            });
+          } else {
             console.error(`id is null on: ${JSON.stringify(dataKey)}`);
-            continue;
           }
-          results[datasetType].push({
-            amr: data.amr_dfs,
-            sent: data.id,
-            lang: "id",
-          });
         }
       }
     }
