@@ -1,4 +1,4 @@
-import {fs} from "./lib";
+import {fs, globby, path} from "./lib";
 
 function cartesianProduct<T extends readonly unknown[]>(
   ...allEntries: (readonly unknown[])[]
@@ -42,4 +42,76 @@ export function writeCleanLines(
   );
 }
 
-export const utils = {cartesianProduct, readCleanedLines, writeCleanLines};
+export async function mergeFilesInto(a: {
+  regex: string;
+  outputFile: string;
+}): Promise<string[]> {
+  const filePathList: string[] = await globby(a.regex);
+
+  const results: string[] = [];
+
+  for (const filePath of filePathList) {
+    results.push(...readCleanedLines(filePath));
+  }
+
+  writeCleanLines(a.outputFile, results);
+
+  return results;
+}
+
+export async function splitFileInto(a: {
+  inputFile: string;
+  outputDir: string;
+  splitCount: number;
+}): Promise<string[]> {
+  const tmpFileList: string[] = [];
+
+  const lines = readCleanedLines(a.inputFile);
+  let stream: fs.WriteStream | null = null;
+  let currBatch = 0;
+  for (let i = 0; i < lines.length; ++i) {
+    const line = lines[i];
+    const lastIndex = Math.floor(
+      (lines.length / a.splitCount) * (currBatch + 1),
+    );
+    if (i > lastIndex) {
+      ++currBatch;
+      if (stream) {
+        stream.end();
+        await new Promise((resolve, reject) => {
+          if (!stream) {
+            return reject(new Error(`stream is null.`));
+          }
+          stream.on("finish", resolve);
+          stream.on("close", reject);
+        });
+        stream = null;
+      }
+    }
+    if (!stream) {
+      const tmpFile = path.join(a.outputDir, `${currBatch}.split`);
+      tmpFileList.push(tmpFile);
+      if (fs.existsSync(tmpFile)) {
+        i = lastIndex;
+        ++currBatch;
+        continue;
+      }
+      fs.ensureFileSync(tmpFile);
+      stream = fs.createWriteStream(tmpFile);
+    }
+    if (line.length > 0) {
+      stream.write(line);
+      stream.write("\n");
+    }
+  }
+
+  return tmpFileList;
+}
+
+export const utils = {
+  cartesianProduct,
+  readCleanedLines,
+  writeCleanLines,
+  mergeFilesInto,
+  splitFileInto,
+};
