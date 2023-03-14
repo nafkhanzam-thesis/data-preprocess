@@ -28,6 +28,17 @@ export function readCleanedLines(
     );
 }
 
+export function readJSONLines(filePath: string): unknown[] {
+  return readCleanedLines(filePath).map((v) => JSON.parse(v));
+}
+
+export function writeJSONLines(filePath: string, data: unknown[]): void {
+  writeCleanLines(
+    filePath,
+    data.map((v) => JSON.stringify(v)),
+  );
+}
+
 export function writeCleanLines(
   filePath: string,
   data: string[],
@@ -111,6 +122,8 @@ export async function splitFileInto(a: {
 export const utils = {
   cartesianProduct,
   readCleanedLines,
+  readJSONLines,
+  writeJSONLines,
   writeCleanLines,
   mergeFilesInto,
   splitFileInto,

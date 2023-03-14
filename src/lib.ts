@@ -1,3 +1,4 @@
+import "@total-typescript/ts-reset";
 export * as cliProgressBar from "@open-tech-world/cli-progress-bar";
 export {default as fs} from "fs-extra";
 export {default as path} from "node:path";

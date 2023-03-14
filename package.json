@@ -67,6 +67,7 @@
   },
   "devDependencies": {
     "@nafkhanzam/nz-cli": "0.0.29",
+    "@total-typescript/ts-reset": "0.4.2",
     "@types/bcrypt": "5.0.0",
     "@types/express": "4.17.17",
     "@types/fs-extra": "11.0.1",
